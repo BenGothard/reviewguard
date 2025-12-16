@@ -3,7 +3,8 @@
     config: 'reviewguard:config',
     email: 'reviewguard:email',
     rateLimit: 'reviewguard:lastFeedback',
-    inbox: 'reviewguard:inbox'
+    inbox: 'reviewguard:inbox',
+    theme: 'reviewguard:theme'
   };
 
   function base64UrlEncode(obj) {
@@ -162,6 +163,31 @@
     }
   }
 
+  function getPreferredTheme() {
+    const stored = localStorage.getItem(STORAGE_KEYS.theme);
+    if (stored === 'light' || stored === 'dark') return stored;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+  }
+
+  function setTheme(theme) {
+    const next = theme === 'dark' ? 'dark' : 'light';
+    localStorage.setItem(STORAGE_KEYS.theme, next);
+    applyTheme(next);
+  }
+
+  function toggleTheme() {
+    const current = document.documentElement.getAttribute('data-theme') || getPreferredTheme();
+    setTheme(current === 'dark' ? 'light' : 'dark');
+  }
+
+  function initTheme() {
+    applyTheme(getPreferredTheme());
+  }
+
   window.ReviewGuard = {
     STORAGE_KEYS,
     base64UrlEncode,
@@ -179,6 +205,13 @@
     loadEmailConfig,
     saveEmailConfig,
     loadInbox,
-    clearInbox
+    clearInbox,
+    applyTheme,
+    toggleTheme,
+    setTheme,
+    initTheme,
+    STORAGE_KEYS
   };
+
+  initTheme();
 })();

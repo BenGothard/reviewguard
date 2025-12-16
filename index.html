@@ -9,8 +9,16 @@
 <body>
   <main class="container" id="app">
     <header id="header">
-      <h1 id="businessName">ReviewGuard</h1>
-      <p id="prompt">How would you rate your service?</p>
+      <div class="top-row">
+        <div>
+          <h1 id="businessName">ReviewGuard</h1>
+          <p id="prompt">How would you rate your service?</p>
+        </div>
+        <button id="themeToggle" type="button" class="theme-toggle" aria-label="Toggle dark mode">
+          <span class="dot" aria-hidden="true"></span>
+          <span class="label-text">Dark mode</span>
+        </button>
+      </div>
       <img id="logo" class="logo-preview" style="display:none;" alt="Business logo" />
     </header>
 
@@ -75,6 +83,7 @@
     const honeypot = document.getElementById('honeypot');
     const submitBtn = document.getElementById('submitBtn');
     const formStatus = document.getElementById('formStatus');
+    const themeToggle = document.getElementById('themeToggle');
 
     function init() {
       const cfg = ReviewGuard.getActiveConfig();
@@ -92,6 +101,7 @@
       }
       renderStars();
       ratingSection.style.display = 'block';
+      updateThemeToggleLabel();
     }
 
     function renderStars() {
@@ -125,6 +135,16 @@
     googleBtn.addEventListener('click', () => {
       if (!state.config?.g) return;
       window.location.href = state.config.g;
+    });
+
+    function updateThemeToggleLabel() {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      themeToggle.querySelector('.label-text').textContent = isDark ? 'Light mode' : 'Dark mode';
+    }
+
+    themeToggle.addEventListener('click', () => {
+      ReviewGuard.toggleTheme();
+      updateThemeToggleLabel();
     });
 
     feedbackForm.addEventListener('submit', (e) => {
@@ -176,6 +196,7 @@
       });
     });
 
+    updateThemeToggleLabel();
     init();
   </script>
 </body>
