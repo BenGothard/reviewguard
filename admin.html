@@ -9,8 +9,16 @@
 <body>
   <main class="container">
     <header>
-      <h1>Review Funnel Setup</h1>
-      <p>Configure your business info, generate the customer link, and review private feedback saved on this device.</p>
+      <div class="top-row">
+        <div>
+          <h1>Review Funnel Setup</h1>
+          <p>Configure your business info, generate the customer link, and review private feedback saved on this device.</p>
+        </div>
+        <button id="themeToggle" type="button" class="theme-toggle" aria-label="Toggle dark mode">
+          <span class="dot" aria-hidden="true"></span>
+          <span class="label-text">Dark mode</span>
+        </button>
+      </div>
     </header>
 
     <section class="section">
@@ -86,6 +94,7 @@
     const linkInput = document.getElementById('customerLink');
     const copyBtn = document.getElementById('copyBtn');
     const qrContainer = document.getElementById('qrContainer');
+    const themeToggle = document.getElementById('themeToggle');
 
     const inboxList = document.getElementById('inboxList');
     const inboxEmpty = document.getElementById('inboxEmpty');
@@ -229,6 +238,16 @@
     });
     [nameInput, googleInput, emailInput, thankInput].forEach(input => input.addEventListener('input', updateLink));
 
+    function updateThemeToggleLabel() {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      themeToggle.querySelector('.label-text').textContent = isDark ? 'Light mode' : 'Dark mode';
+    }
+
+    themeToggle.addEventListener('click', () => {
+      ReviewGuard.toggleTheme();
+      updateThemeToggleLabel();
+    });
+
     copyInboxBtn.addEventListener('click', async () => {
       const csv = inboxToCSV();
       try {
@@ -247,6 +266,7 @@
     });
 
     hydrate();
+    updateThemeToggleLabel();
   </script>
 </body>
 </html>
