@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReviewGuard</title>
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <main class="container" id="app">
+    <header id="header">
+      <h1 id="businessName">ReviewGuard</h1>
+      <p id="prompt">How would you rate your service?</p>
+      <img id="logo" class="logo-preview" style="display:none;" alt="Business logo" />
+    </header>
+
+    <div id="notConfigured" class="card-muted" style="display:none;">
+      <p>This review link isn’t configured yet.</p>
+      <div class="actions">
+        <a class="button primary" href="admin.html">Go to admin setup</a>
+      </div>
+    </div>
+
+    <div id="ratingSection" style="display:none;">
+      <div class="stars" id="stars"></div>
+      <div id="positiveFlow" style="display:none;">
+        <p id="positiveCopy"></p>
+        <button id="googleBtn" class="button primary">Post on Google</button>
+        <small id="thanksNote"></small>
+      </div>
+
+      <form id="feedbackForm" class="feedback-form" style="display:none;">
+        <label class="label" for="feedback">Tell us what went wrong</label>
+        <textarea id="feedback" class="input" maxlength="800" required></textarea>
+
+        <label class="label" for="name">Name (optional)</label>
+        <input id="name" class="input" />
+
+        <label class="label" for="phone">Phone (optional)</label>
+        <input id="phone" class="input" />
+
+        <label class="label" for="email">Email (optional)</label>
+        <input id="email" class="input" type="email" />
+
+        <input type="text" id="honeypot" name="hp" style="display:none;" tabindex="-1" autocomplete="off" />
+
+        <div class="actions">
+          <button id="submitBtn" class="button primary" type="submit">Send privately</button>
+        </div>
+        <div id="formStatus" class="status" role="status"></div>
+      </form>
+    </div>
+
+    <div class="footer">Powered by ReviewGuard</div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js" integrity="sha384-PXOAWKWp8wa0Jfe2naYQ3DY76wda5J9p8m2ubAGGdDHIm5YHEd0Wl9prdeKdSlG2" crossorigin="anonymous"></script>
+  <script src="assets/app.js"></script>
+  <script>
+    const state = { config: null, selection: null };
+    const starsEl = document.getElementById('stars');
+    const ratingSection = document.getElementById('ratingSection');
+    const notConfigured = document.getElementById('notConfigured');
+    const businessNameEl = document.getElementById('businessName');
+    const promptEl = document.getElementById('prompt');
+    const logo = document.getElementById('logo');
+    const positiveFlow = document.getElementById('positiveFlow');
+    const googleBtn = document.getElementById('googleBtn');
+    const thanksNote = document.getElementById('thanksNote');
+    const positiveCopy = document.getElementById('positiveCopy');
+    const feedbackForm = document.getElementById('feedbackForm');
+    const feedbackInput = document.getElementById('feedback');
+    const nameInput = document.getElementById('name');
+    const phoneInput = document.getElementById('phone');
+    const emailInput = document.getElementById('email');
+    const honeypot = document.getElementById('honeypot');
+    const submitBtn = document.getElementById('submitBtn');
+    const formStatus = document.getElementById('formStatus');
+
+    function init() {
+      const cfg = ReviewGuard.getActiveConfig();
+      if (!cfg) {
+        notConfigured.style.display = 'block';
+        return;
+      }
+      state.config = cfg;
+      businessNameEl.textContent = ReviewGuard.escapeHTML(cfg.b);
+      promptEl.textContent = 'How would you rate your service?';
+      thanksNote.textContent = ReviewGuard.getThankYouMessage(cfg);
+      if (cfg.l) {
+        logo.src = cfg.l;
+        logo.style.display = 'block';
+      }
+      renderStars();
+      ratingSection.style.display = 'block';
+    }
+
+    function renderStars() {
+      starsEl.innerHTML = '';
+      for (let i = 1; i <= 5; i++) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'star';
+        btn.textContent = '★';
+        btn.dataset.value = i;
+        btn.setAttribute('aria-label', `${i} star${i>1?'s':''}`);
+        btn.addEventListener('click', () => handleSelect(i));
+        starsEl.appendChild(btn);
+      }
+    }
+
+    function handleSelect(value) {
+      state.selection = value;
+      document.querySelectorAll('.star').forEach(el => el.classList.toggle('selected', Number(el.dataset.value) === value));
+      positiveFlow.style.display = 'none';
+      feedbackForm.style.display = 'none';
+      formStatus.textContent = '';
+      if (value >= 4) {
+        positiveCopy.textContent = `Great! Please share your ${value}-star review on Google.`;
+        positiveFlow.style.display = 'block';
+      } else {
+        feedbackForm.style.display = 'block';
+      }
+    }
+
+    googleBtn.addEventListener('click', () => {
+      if (!state.config?.g) return;
+      window.location.href = state.config.g;
+    });
+
+    feedbackForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!state.config) return;
+      if (!state.selection || state.selection >= 4) return;
+      if (honeypot.value) {
+        formStatus.textContent = 'Submission blocked.';
+        return;
+      }
+      if (!ReviewGuard.rateLimitOkay()) {
+        formStatus.textContent = 'Please wait a moment before sending again.';
+        formStatus.className = 'status error';
+        return;
+      }
+      const feedback = feedbackInput.value.trim();
+      if (!feedback) {
+        formStatus.textContent = 'Feedback is required.';
+        formStatus.className = 'status error';
+        return;
+      }
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Sending...';
+      formStatus.textContent = '';
+
+      const payload = {
+        businessName: state.config.b,
+        rating: state.selection,
+        feedback,
+        name: nameInput.value.trim(),
+        phone: phoneInput.value.trim(),
+        email: emailInput.value.trim(),
+        notificationEmail: state.config.e,
+        pageUrl: window.location.href,
+        timestamp: new Date().toISOString()
+      };
+
+      ReviewGuard.sendFeedbackEmail(payload, (ok, msg) => {
+        if (ok) {
+          feedbackForm.reset();
+          feedbackForm.style.display = 'none';
+          formStatus.textContent = `Thanks — we sent this privately to ${state.config.b}.`;
+          formStatus.className = 'status success';
+        } else {
+          formStatus.textContent = msg || 'Unable to send right now. Please email us directly.';
+          formStatus.className = 'status error';
+        }
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Send privately';
+      });
+    });
+
+    init();
+  </script>
+</body>
+</html>
