@@ -10,7 +10,7 @@
   <main class="container">
     <header>
       <h1>Review Funnel Setup</h1>
-      <p>Configure your business info, generate the customer link, and save your email settings for private feedback.</p>
+      <p>Configure your business info, generate the customer link, and review private feedback saved on this device.</p>
     </header>
 
     <section class="section">
@@ -20,7 +20,7 @@
       <label class="label" for="googleLink">Google Review Link</label>
       <input id="googleLink" class="input" placeholder="https://g.page/r/your-place/review" />
 
-      <label class="label" for="notificationEmail">Notification Email</label>
+      <label class="label" for="notificationEmail">Notification Email (optional)</label>
       <input id="notificationEmail" class="input" placeholder="owner@example.com" />
 
       <label class="label" for="thankYou">Thank you message (optional)</label>
@@ -48,23 +48,15 @@
     </section>
 
     <section class="section">
-      <h3>EmailJS (for private feedback)</h3>
-      <p>Requires a free EmailJS account. Keys are stored locally only and <strong>not</strong> included in the shared link.</p>
-      <label class="label" for="emailService">Service ID</label>
-      <input id="emailService" class="input" placeholder="service_xxx" />
-
-      <label class="label" for="emailTemplate">Template ID</label>
-      <input id="emailTemplate" class="input" placeholder="template_xxx" />
-
-      <label class="label" for="emailPublic">Public Key</label>
-      <input id="emailPublic" class="input" placeholder="YOUR_PUBLIC_KEY" />
+      <h3>Private feedback inbox (this device)</h3>
+      <p>Low-score feedback is saved here automatically—no email app or API keys needed.</p>
+      <div id="inboxEmpty" class="card-muted">No private feedback yet.</div>
+      <div id="inboxList" class="inbox-list"></div>
       <div class="actions">
-        <button id="saveEmailBtn" class="button primary">Save Email Settings</button>
+        <button id="copyInboxBtn" class="button secondary">Copy inbox as CSV</button>
+        <button id="clearInboxBtn" class="button secondary">Clear inbox</button>
       </div>
-      <div class="card-muted">
-        <strong>Template variables to include:</strong><br>
-        business_name, rating, feedback, customer_name, customer_phone, customer_email, notification_email, page_url, submitted_at
-      </div>
+      <small class="card-muted">Stored locally in this browser. Export periodically to keep a backup.</small>
     </section>
 
     <section class="section card-muted">
@@ -72,7 +64,7 @@
       <ul>
         <li>Fill in your business details and click <em>Save configuration</em>.</li>
         <li>Copy the customer link (or scan the QR) and send it after each job.</li>
-        <li>High scores go to Google; low scores send you private feedback via EmailJS.</li>
+        <li>High scores go to Google; low scores are saved in the inbox above.</li>
       </ul>
     </section>
 
@@ -95,10 +87,10 @@
     const copyBtn = document.getElementById('copyBtn');
     const qrContainer = document.getElementById('qrContainer');
 
-    const emailService = document.getElementById('emailService');
-    const emailTemplate = document.getElementById('emailTemplate');
-    const emailPublic = document.getElementById('emailPublic');
-    const saveEmailBtn = document.getElementById('saveEmailBtn');
+    const inboxList = document.getElementById('inboxList');
+    const inboxEmpty = document.getElementById('inboxEmpty');
+    const copyInboxBtn = document.getElementById('copyInboxBtn');
+    const clearInboxBtn = document.getElementById('clearInboxBtn');
 
     function hydrate() {
       const stored = ReviewGuard.loadStoredConfig();
@@ -110,13 +102,8 @@
         logoInput.value = stored.l || '';
         if (stored.l) logoPreview.src = stored.l;
       }
-      const emailCfg = ReviewGuard.loadEmailConfig();
-      if (emailCfg) {
-        emailService.value = emailCfg.serviceId || '';
-        emailTemplate.value = emailCfg.templateId || '';
-        emailPublic.value = emailCfg.publicKey || '';
-      }
       updateLink();
+      renderInbox();
     }
 
     function updateLink() {
@@ -127,8 +114,8 @@
         t: thankInput.value.trim(),
         l: logoInput.value.trim()
       };
-      if (!data.b || !data.g || !data.e) {
-        linkInput.value = 'Fill required fields to generate link';
+      if (!data.b || !data.g) {
+        linkInput.value = 'Fill business name and Google link to generate';
         qrContainer.style.display = 'none';
         qrContainer.innerHTML = '';
         return;
@@ -154,6 +141,44 @@
       el.className = 'status ' + (isError ? 'error' : 'success');
     }
 
+    function renderInbox() {
+      const inbox = ReviewGuard.loadInbox();
+      inboxList.innerHTML = '';
+      if (!inbox.length) {
+        inboxEmpty.style.display = 'block';
+        return;
+      }
+      inboxEmpty.style.display = 'none';
+      inbox.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'card-muted';
+        const date = new Date(item.timestamp).toLocaleString();
+        card.innerHTML = `
+          <div><strong>${item.businessName}</strong> • ${item.rating} star${item.rating > 1 ? 's' : ''} • ${date}</div>
+          <div>${ReviewGuard.escapeHTML(item.feedback)}</div>
+          <div class="small">${item.name ? 'Name: ' + ReviewGuard.escapeHTML(item.name) + ' • ' : ''}${item.phone ? 'Phone: ' + ReviewGuard.escapeHTML(item.phone) + ' • ' : ''}${item.email ? 'Email: ' + ReviewGuard.escapeHTML(item.email) + ' • ' : ''}Source: ${ReviewGuard.escapeHTML(item.pageUrl || '')}</div>
+        `;
+        inboxList.appendChild(card);
+      });
+    }
+
+    function inboxToCSV() {
+      const inbox = ReviewGuard.loadInbox();
+      const header = ['business_name','rating','feedback','name','phone','email','page_url','timestamp'];
+      const rows = inbox.map(item => [
+        item.businessName || '',
+        item.rating || '',
+        (item.feedback || '').replace(/"/g,'""'),
+        item.name || '',
+        item.phone || '',
+        item.email || '',
+        item.pageUrl || '',
+        item.timestamp || ''
+      ]);
+      const csv = [header.join(','), ...rows.map(r => r.map(val => `"${val}"`).join(','))].join('\n');
+      return csv;
+    }
+
     saveBtn.addEventListener('click', () => {
       const data = {
         b: nameInput.value.trim(),
@@ -163,16 +188,12 @@
         l: logoInput.value.trim()
       };
 
-      if (!data.b || !data.g || !data.e) {
-        showStatus(saveStatus, 'Business name, Google link, and email are required.', true);
+      if (!data.b || !data.g) {
+        showStatus(saveStatus, 'Business name and Google link are required.', true);
         return;
       }
       if (!ReviewGuard.isValidUrl(data.g)) {
         showStatus(saveStatus, 'Google review link must be a valid URL.', true);
-        return;
-      }
-      if (!ReviewGuard.isValidEmail(data.e)) {
-        showStatus(saveStatus, 'Notification email looks invalid.', true);
         return;
       }
 
@@ -208,18 +229,21 @@
     });
     [nameInput, googleInput, emailInput, thankInput].forEach(input => input.addEventListener('input', updateLink));
 
-    saveEmailBtn.addEventListener('click', () => {
-      const cfg = {
-        serviceId: emailService.value.trim(),
-        templateId: emailTemplate.value.trim(),
-        publicKey: emailPublic.value.trim()
-      };
-      if (!cfg.serviceId || !cfg.templateId || !cfg.publicKey) {
-        showStatus(saveStatus, 'EmailJS settings saved only when all three fields are provided.', true);
-        return;
+    copyInboxBtn.addEventListener('click', async () => {
+      const csv = inboxToCSV();
+      try {
+        await navigator.clipboard.writeText(csv);
+        showStatus(saveStatus, 'Inbox copied as CSV.');
+      } catch {
+        showStatus(saveStatus, 'Copy failed. You can export manually.', true);
       }
-      ReviewGuard.saveEmailConfig(cfg);
-      showStatus(saveStatus, 'EmailJS settings saved.');
+    });
+
+    clearInboxBtn.addEventListener('click', () => {
+      if (!confirm('Clear all private feedback stored on this device?')) return;
+      ReviewGuard.clearInbox();
+      renderInbox();
+      showStatus(saveStatus, 'Inbox cleared.');
     });
 
     hydrate();

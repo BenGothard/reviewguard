@@ -54,7 +54,6 @@
     <div class="footer">Powered by ReviewGuard</div>
   </main>
 
-  <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js" integrity="sha384-PXOAWKWp8wa0Jfe2naYQ3DY76wda5J9p8m2ubAGGdDHIm5YHEd0Wl9prdeKdSlG2" crossorigin="anonymous"></script>
   <script src="assets/app.js"></script>
   <script>
     const state = { config: null, selection: null };
@@ -158,19 +157,18 @@
         name: nameInput.value.trim(),
         phone: phoneInput.value.trim(),
         email: emailInput.value.trim(),
-        notificationEmail: state.config.e,
         pageUrl: window.location.href,
         timestamp: new Date().toISOString()
       };
 
-      ReviewGuard.sendFeedbackEmail(payload, (ok, msg) => {
+      ReviewGuard.storeFeedback(payload, (ok, msg) => {
         if (ok) {
           feedbackForm.reset();
           feedbackForm.style.display = 'none';
-          formStatus.textContent = `Thanks — we sent this privately to ${state.config.b}.`;
+          formStatus.textContent = `Thanks — we saved this privately for ${state.config.b}.`;
           formStatus.className = 'status success';
         } else {
-          formStatus.textContent = msg || 'Unable to send right now. Please email us directly.';
+          formStatus.textContent = msg || 'Unable to save right now. Please try again.';
           formStatus.className = 'status error';
         }
         submitBtn.disabled = false;

@@ -2,7 +2,8 @@
   const STORAGE_KEYS = {
     config: 'reviewguard:config',
     email: 'reviewguard:email',
-    rateLimit: 'reviewguard:lastFeedback'
+    rateLimit: 'reviewguard:lastFeedback',
+    inbox: 'reviewguard:inbox'
   };
 
   function base64UrlEncode(obj) {
@@ -66,20 +67,51 @@
     localStorage.removeItem(STORAGE_KEYS.email);
   }
 
+  function loadInbox() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.inbox);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveInbox(entries) {
+    localStorage.setItem(STORAGE_KEYS.inbox, JSON.stringify(entries));
+  }
+
+  function addToInbox(payload) {
+    const entries = loadInbox();
+    entries.unshift(payload);
+    saveInbox(entries);
+  }
+
+  function clearInbox() {
+    localStorage.removeItem(STORAGE_KEYS.inbox);
+  }
+
   function parseConfigFromQuery() {
     const params = new URLSearchParams(window.location.search);
     if (params.has('p')) {
       const decoded = base64UrlDecode(params.get('p'));
-      if (decoded && decoded.b && decoded.g && decoded.e) return decoded;
+      if (decoded && decoded.b && decoded.g) {
+        return {
+          b: decoded.b,
+          g: decoded.g,
+          e: decoded.e || '',
+          t: decoded.t || '',
+          l: decoded.l || ''
+        };
+      }
     }
     const b = params.get('b');
     const g = params.get('g');
     const e = params.get('e');
-    if (b && g && e) {
+    if (b && g) {
       return {
         b: decodeURIComponent(b),
         g: decodeURIComponent(g),
-        e: decodeURIComponent(e),
+        e: e ? decodeURIComponent(e) : '',
         t: params.get('t') ? decodeURIComponent(params.get('t')) : '',
         l: params.get('l') ? decodeURIComponent(params.get('l')) : ''
       };
@@ -120,44 +152,14 @@
     return true;
   }
 
-  function sendFeedbackEmail(payload, onStatus) {
-    const emailConfig = loadEmailConfig();
-    if (!emailConfig || !emailConfig.serviceId || !emailConfig.templateId || !emailConfig.publicKey) {
-      onStatus(false, 'Email is not configured. Add EmailJS keys in the admin page.');
-      return;
-    }
-
-    if (!window.emailjs) {
-      onStatus(false, 'Email service unavailable. Check your connection.');
-      return;
-    }
-
+  function storeFeedback(payload, onStatus) {
     try {
-      window.emailjs.init(emailConfig.publicKey);
+      addToInbox(payload);
+      onStatus(true, 'Saved privately on this device.');
     } catch (err) {
-      console.warn('emailjs init failed', err);
-      onStatus(false, 'Unable to initialize email. Check your public key.');
-      return;
+      console.warn('Unable to store feedback', err);
+      onStatus(false, 'Unable to save feedback right now.');
     }
-
-    const templateParams = {
-      business_name: payload.businessName,
-      rating: payload.rating,
-      feedback: payload.feedback,
-      customer_name: payload.name,
-      customer_phone: payload.phone,
-      customer_email: payload.email,
-      notification_email: payload.notificationEmail,
-      page_url: payload.pageUrl,
-      submitted_at: payload.timestamp
-    };
-
-    window.emailjs.send(emailConfig.serviceId, emailConfig.templateId, templateParams)
-      .then(() => onStatus(true))
-      .catch((err) => {
-        console.warn('email send failed', err);
-        onStatus(false, 'Could not send email. Verify your EmailJS settings.');
-      });
   }
 
   window.ReviewGuard = {
@@ -173,8 +175,10 @@
     isValidEmail,
     getThankYouMessage,
     rateLimitOkay,
-    sendFeedbackEmail,
+    storeFeedback,
     loadEmailConfig,
-    saveEmailConfig
+    saveEmailConfig,
+    loadInbox,
+    clearInbox
   };
 })();
